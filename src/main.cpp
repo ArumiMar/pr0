@@ -5,13 +5,22 @@
 
 #define LED_PIN 2
 #define BUTTON_PIN 33
-#define POT_ADC_CHANNEL 32
+#define POT_ADC_CHANNEL 34
 
 TaskHandle_t taskFastHandle = NULL;
 TaskHandle_t taskSlowHandle = NULL;
 
-volatile bool isSystemIdleWindow = false;
+volatile bool isSystemIdleWindow = false; 
 TickType_t lastIdlePrintTime = 0;
+
+volatile int global_pot_raw = 0;
+
+void TaskReadADC(void *pvParameters) {
+    while (true) {
+        global_pot_raw = analogRead(POT_ADC_CHANNEL);
+        vTaskDelay(pdMS_TO_TICKS(50)); 
+    }
+}
 
 bool my_idle_hook(void) {
     if (isSystemIdleWindow) {
@@ -21,16 +30,11 @@ bool my_idle_hook(void) {
             int button_state = digitalRead(BUTTON_PIN);
             bool isPressed = (button_state == LOW); 
             
-            int pot_raw = analogRead(POT_ADC_CHANNEL);
-            float voltage = (pot_raw / 4095.0) * 3.3;
+            int pot_raw = global_pot_raw;
+            int voltage_mv = (pot_raw * 3300) / 4095;
 
-            char str_voltage[10]; 
-            dtostrf(voltage, 4, 2, str_voltage);
-
-            
-
-            ets_printf("[IDLE] boton presionado: %s | voltaje: %.2f mV\n", 
-                   isPressed ? "SI" : "NO", str_voltage);
+            ets_printf("[IDLE] boton presionado: %s | voltaje: %d mV\n", 
+                   isPressed ? "SI" : "NO", voltage_mv);
             
             lastIdlePrintTime = currentTime;
         }
@@ -79,19 +83,18 @@ void TaskManager(void *pvParameters) {
 
 void setup() {
     Serial.begin(115200);
+
     analogReadResolution(12);
 
-    pinMode(POT_ADC_CHANNEL, INPUT);
     pinMode(LED_PIN, OUTPUT);
     pinMode(BUTTON_PIN, INPUT_PULLUP);
 
-    analogSetAttenuation(ADC_11db);
     esp_register_freertos_idle_hook(my_idle_hook);
-    analogSetWidth(12);
+
+    xTaskCreate(TaskReadADC, "TaskADC", 2048, NULL, 1, NULL);
 
     xTaskCreate(TaskFastBlink, "TaskFast", 2048, NULL, 1, &taskFastHandle);
     xTaskCreate(TaskSlowBlink, "TaskSlow", 2048, NULL, 1, &taskSlowHandle);
-
     xTaskCreate(TaskManager, "TaskManager", 2048, NULL, 2, NULL);
 }
 

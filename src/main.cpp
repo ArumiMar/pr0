@@ -1,4 +1,8 @@
-/*el uso de freeRTOS permite gestiornar varias tareas de manera eficiente siempre y cuando se 
+/*/* conlusion del equipo: 
+integrantes: 
+    - Alexa Huerta Sanchez
+    - Arumi Mar Romero
+el uso de freeRTOS permite gestiornar varias tareas de manera eficiente siempre y cuando se 
 respeten las reglas de diseño. los cambios mas criticos estuvieron en como algunas funcionres 
 requieren acceso exclusivo al hardware, en este caso, la lectura del adc, ya que no podia ejercutarse
 dentro del idle. esto se resolvio usando una tarea aislada y una varible global para compartir la lectura del adc. 

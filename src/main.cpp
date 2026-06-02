@@ -6,8 +6,7 @@ el uso de freeRTOS permite gestiornar varias tareas de manera eficiente siempre 
 respeten las reglas de diseño. los cambios mas criticos estuvieron en como algunas funcionres 
 requieren acceso exclusivo al hardware, en este caso, la lectura del adc, ya que no podia ejercutarse
 dentro del idle. esto se resolvio usando una tarea aislada y una varible global para compartir la lectura del adc. 
-luego, el uso adecuado de las prioridades, permite que la tarea principal controle los tiempor del 
-led. luego, otro problema fue resolver el acceso al hardware para la lectura del adc 
+luego, otro problema fue resolver el acceso al hardware para la lectura del adc 
 cumpliendo con la restriccion de tener solo tres tareas. esto se resolvio eliminando los hooks y las variables globales
 e integrando el bucle de lectura del sensor directamente dentro de la fase de descanso de la TaskManager
 por ultimo, el uso adecuado de las prioridades permite que esta tarea principal 

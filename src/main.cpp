@@ -7,7 +7,12 @@ respeten las reglas de diseño. los cambios mas criticos estuvieron en como algu
 requieren acceso exclusivo al hardware, en este caso, la lectura del adc, ya que no podia ejercutarse
 dentro del idle. esto se resolvio usando una tarea aislada y una varible global para compartir la lectura del adc. 
 luego, el uso adecuado de las prioridades, permite que la tarea principal controle los tiempor del 
-led. 
+led. luego, otro problema fue resolver el acceso al hardware para la lectura del adc 
+cumpliendo con la restriccion de tener solo tres tareas. esto se resolvio eliminando los hooks y las variables globales
+e integrando el bucle de lectura del sensor directamente dentro de la fase de descanso de la TaskManager
+por ultimo, el uso adecuado de las prioridades permite que esta tarea principal 
+controle los tiempos de los LEDs y el monitoreo con precisión.
+
 */
 //librerias y definicion de harware 
 #include <Arduino.h>

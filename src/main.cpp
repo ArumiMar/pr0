@@ -11,8 +11,8 @@ cumpliendo con la restriccion de tener solo tres tareas. esto se resolvio elimin
 e integrando el bucle de lectura del sensor directamente dentro de la fase de descanso de la TaskManager
 por ultimo, el uso adecuado de las prioridades permite que esta tarea principal 
 controle los tiempos de los LEDs y el monitoreo con precisión.
-
 */
+
 //librerias y definicion de harware 
 #include <Arduino.h>
 #include "freertos/FreeRTOS.h" 
@@ -26,10 +26,6 @@ controle los tiempos de los LEDs y el monitoreo con precisión.
 
 TaskHandle_t taskFastHandle = NULL;  //parpaedo rapido
 TaskHandle_t taskSlowHandle = NULL;  //parpadeo lento
-
-//volatile bool isSystemIdleWindow = false;  // flag para avisar cuando debe de imprimir en la terminal 
-//TickType_t lastIdlePrintTime = 0; 
-//volatile int global_pot_raw = 0; //guargar la lectura del pot 
 
 void TaskFastBlink(void *pvParameters) { //parpadeo rapido 
     while (true) { 

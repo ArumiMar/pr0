@@ -3,7 +3,7 @@ integrantes:
     Arumi Mar Romero
 
 Este proyecto implementa un sistema multitarea de tiempo real utilizando FreeRTOS sobre una ESP32 (desarrollado en PlatformIO). 
-El sistema coordina la ejecución de tres tareas principalespara controlar estados de parpadeo de un LED externo y realizar el monitoreo del
+El sistema coordina la ejecución de tres tareas principales para controlar estados de parpadeo de un LED externo y realizar el monitoreo del
 valor de voltaje de un potenciómetro sin interrumpir el kernel del SO
 
   Circuito y funcionamiento: 

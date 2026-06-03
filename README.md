@@ -18,11 +18,11 @@ Se tienen 3 tarea y además delegando el tiempo muerto del microprocesador a la 
     Fase 1 (0-5s): reanuda el parpadeo rápido y suspende el lento
     Fase 2 (5-10s): suspende el parpadeo rápido y reanuda el lento
     Fase 3 (10-15s): suspende ambas tareas de parpadeo, asegura el LED en estado apagado;
-                     durante estos 5 segundos, realiza lecturas continuas del botón y el potenciómetro imprimiendo
-                     el voltaje calculado (conversión de 12 bits a escala de 0-3.3V) en la terminal cada 500 ms
+                     durante estos 5 segundos, realiza lecturas continuas del botón y el potenciómetro                          imprimiendo el voltaje calculado (conversión de 12 bits a escala de 0-3.3V) en la
+                     terminal cada 500 ms
 
   Conexiones físicas:
-LED Externo : GPIO 4,  salida digital, requiere resistencia conectada a GND
-Botón Pulsador : GPIO 33, entrada digital, configurado con INPUT_PULLUP interno 
+LED externo : GPIO 4,  salida digital, requiere resistencia conectada a GND
+Botón pulsador : GPIO 33, entrada digital, configurado con INPUT_PULLUP interno 
 Potenciómetro : GPIO 34, entrada analógica, canal ADC1, resolución de 12 bits (0 - 4095)
     

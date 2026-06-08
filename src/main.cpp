@@ -67,10 +67,14 @@ void TaskManager(void *pvParameters) {
             
             float voltage = (analogRead(POT_ADC_CHANNEL) / 4095.0) * 3.3;
 
-            Serial.printf("[IDLE] boton presionado: %s | voltaje: %.2f V\n", 
+            if(isPressed){
+                
+                Serial.printf("[IDLE] boton presionado: %s | voltaje: %.2f V\n", 
                           isPressed ? "SI" : "NO", voltage);
+            }
+
             
-            vTaskDelay(pdMS_TO_TICKS(500)); // esperar medio segundo entre cada impresion 
+            vTaskDelay(pdMS_TO_TICKS(100)); // esperar medio segundo entre cada impresion 
         }
     }
 }

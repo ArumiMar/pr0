@@ -21,8 +21,8 @@ controle los tiempos de los LEDs y el monitoreo con precisión.
 #include "esp_adc/adc_oneshot.h"
 #include "esp_system.h"
 
-#define LED_PIN GPIO_NUM_2 // pin para conectar el led externo 
-#define BOTON_PIN GPIO_NUM_0 // pin para conectar el boton 
+#define LED_PIN GPIO_NUM_4 // pin para conectar el led externo 
+#define BOTON_PIN GPIO_NUM_33 // pin para conectar el boton 
 #define SENSOR_ADC_CH ADC_CHANNEL_6 // pin para la lectura analogica 
 
 // variables globales 
@@ -76,7 +76,7 @@ void vTaskLedLento(void *pvParameters) {  //parpadeo lento , prioridad 2
                 vTaskResume(hLedRapido); // reactiva el parpadeo rapido  
             }
         } else {
-            vTaskDelay(pdMS_TO_TICKS(50)); 
+            vTaskDelay(pdMS_TO_TICKS(1000)); 
         }
     }
 }
@@ -109,33 +109,41 @@ void vTaskSensor(void *pvParameters) {
 }
 
 void vTaskMonitor(void *pvParameters) {  //monitor, prioridad 4
-    int ultimoEstado = 1; 
+int ultimoEstado = 1;
+    int contadorSegundos = 0;
     
     while (1) {
         int estadoActual = gpio_get_level(BOTON_PIN);
-        
-        // detecta boton presionado  
-        if (ultimoEstado == 1 && estadoActual == 0) {
-            printf("[MON] *** BOTON PRESIONADO ***\n"); // [cite: 32]
+
+if (ultimoEstado == 1 && estadoActual == 0) {
+            printf("\n[MON] BOTON PRESIONADO \n");
             g_botonPres = true;
             g_ledRapido = false;
         }
+        
         ultimoEstado = estadoActual;
-
-        // reporte de stack 
-        if (xTaskGetTickCount() % pdMS_TO_TICKS(1000) < 50) {
-            printf("[MON] Heap:%d Stack R:%d\n", 
+        
+        contadorSegundos++;
+        if (contadorSegundos >= 20) {
+            printf("[MON] Heap:%d | Stack R:%d\n", 
                    (int)esp_get_free_heap_size(), 
                    (int)uxTaskGetStackHighWaterMark(hLedRapido));
+            contadorSegundos = 0;
         }
         
-        vTaskDelay(pdMS_TO_TICKS(50)); 
+        vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
-void vApplicationIdleHook(void) {  // idle hook (prioridad 0)
-    printf("[IDLE] CPU libre esperando evento de boton\n");
+extern "C" void vApplicationIdleHook(void) {  // idle hook (prioridad 0)
+    static TickType_t lastPrintTime = 0;
+    TickType_t currentTime = xTaskGetTickCount();
 
+    if ((currentTime - lastPrintTime) >= pdMS_TO_TICKS(1000)) {
+        printf("[IDLE] CPU libre esperando evento de boton\n");
+        lastPrintTime = currentTime;
+    }
 }
+
 extern "C" void app_main() {
     printf("practica 1\n");
     

@@ -14,82 +14,139 @@ controle los tiempos de los LEDs y el monitoreo con precisión.
 */
 
 //librerias y definicion de harware 
-#include <Arduino.h>
-#include "freertos/FreeRTOS.h" 
-#include "freertos/task.h" //para crear tareas 
-#include "esp_freertos_hooks.h" //usar el tiempo de inactividad 
-#include <driver/adc.h>
+#include <stdio.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "driver/gpio.h"
+#include "esp_adc/adc_oneshot.h"
+#include "esp_system.h"
 
-#define LED_PIN 4 // pin para conectar el led externo 
-#define BUTTON_PIN 33 // pin para conectar el boton 
-#define POT_ADC_CHANNEL 34 // pin para la lectura analogica 
+#define LED_PIN GPIO_NUM_2 // pin para conectar el led externo 
+#define BOTON_PIN GPIO_NUM_0 // pin para conectar el boton 
+#define SENSOR_ADC_CH ADC_CHANNEL_6 // pin para la lectura analogica 
 
-TaskHandle_t taskFastHandle = NULL;  //parpaedo rapido
-TaskHandle_t taskSlowHandle = NULL;  //parpadeo lento
+// variables globales 
+volatile bool g_ledRapido = true;
+volatile bool g_botonPres = false;
+volatile bool g_sensorActivo = false;
 
-void TaskFastBlink(void *pvParameters) { //parpadeo rapido 
-    while (true) { 
-        digitalWrite(LED_PIN, HIGH);
-        vTaskDelay(pdMS_TO_TICKS(100));
-        digitalWrite(LED_PIN, LOW);
-        vTaskDelay(pdMS_TO_TICKS(100));
-    }
-}
+// para reanudar la tarea
+TaskHandle_t hLedRapido = NULL;
 
-void TaskSlowBlink(void *pvParameters) { //parpadeo lento 
-    while (true) {
-        digitalWrite(LED_PIN, HIGH);
-        vTaskDelay(pdMS_TO_TICKS(500));
-        digitalWrite(LED_PIN, LOW);
-        vTaskDelay(pdMS_TO_TICKS(500));
-    }
-}
-
-void TaskManager(void *pvParameters) {
-    while (true) {
-        vTaskResume(taskFastHandle);
-        vTaskSuspend(taskSlowHandle);
-        vTaskDelay(pdMS_TO_TICKS(5000));
-
-        vTaskSuspend(taskFastHandle);
-        vTaskResume(taskSlowHandle);
-        vTaskDelay(pdMS_TO_TICKS(5000));
-
-        vTaskSuspend(taskFastHandle);
-        vTaskSuspend(taskSlowHandle);
-        digitalWrite(LED_PIN, LOW); 
+void vTaskLedRapido(void *pvParameters) { //parpadeo rapido, prioridad 1
+    while (1) {
+        if (g_botonPres) {
+            printf("[LED_R] Boton detectado -> activando modo LENTO\n");
+            vTaskSuspend(NULL); // para que se suspenda a si misma y deje de parpadear rapido
+        }
         
-        TickType_t startTime = xTaskGetTickCount(); // leer el boton y el pot durante 5 segundos
-        while ((xTaskGetTickCount() - startTime) < pdMS_TO_TICKS(5000)) {
-            
-            int button_state = digitalRead(BUTTON_PIN);
-            bool isPressed = (button_state == LOW); 
-            
-            float voltage = (analogRead(POT_ADC_CHANNEL) / 4095.0) * 3.3;
+        gpio_set_level(LED_PIN, 1);
+        printf("[LED_R] ON tick:%d\n", (int)xTaskGetTickCount());
+        vTaskDelay(pdMS_TO_TICKS(100)); // parpadeo 100ms 
+        
+        gpio_set_level(LED_PIN, 0);
+        printf("[LED_R] OFF tick:%d\n", (int)xTaskGetTickCount());
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
 
-            if(isPressed){
-                
-                Serial.printf("[IDLE] boton presionado: %s | voltaje: %.2f V\n", 
-                          isPressed ? "SI" : "NO", voltage);
+void vTaskLedLento(void *pvParameters) {  //parpadeo lento , prioridad 2
+    int tiempoRestante = 5000; // 5 segundos de timeout 
+    
+    while (1) {
+        if (!g_ledRapido && g_botonPres) {
+            g_sensorActivo = true;
+            
+            gpio_set_level(LED_PIN, 1);
+            printf("[LED_L] ON t restante:%dms\n", tiempoRestante);
+            vTaskDelay(pdMS_TO_TICKS(500)); // parpadeo 500ms 
+            
+            gpio_set_level(LED_PIN, 0);
+            vTaskDelay(pdMS_TO_TICKS(500));
+            
+            tiempoRestante -= 1000;
+            
+            // timeout 
+            if (tiempoRestante <= 0) {
+                printf("[LED_L] Timeout 5s -> regresando a modo RAPIDO\n");
+                g_ledRapido = true;
+                g_botonPres = false;
+                g_sensorActivo = false;
+                tiempoRestante = 5000; // reinicia el contador
+                vTaskResume(hLedRapido); // reactiva el parpadeo rapido  
             }
-
-            
-            vTaskDelay(pdMS_TO_TICKS(100)); // esperar medio segundo entre cada impresion 
+        } else {
+            vTaskDelay(pdMS_TO_TICKS(50)); 
         }
     }
 }
-void setup() {
-    Serial.begin(115200);
 
-    pinMode(LED_PIN, OUTPUT);
-    pinMode(BUTTON_PIN, INPUT_PULLUP);
-       
-    //tareas 
-    xTaskCreate(TaskFastBlink, "TaskFast", 2048, NULL, 1, &taskFastHandle);
-    xTaskCreate(TaskSlowBlink, "TaskSlow", 2048, NULL, 1, &taskSlowHandle);
-    xTaskCreate(TaskManager, "TaskManager", 4096, NULL, 2, NULL); //doble memoria para la impresion 
+void vTaskSensor(void *pvParameters) {
+    adc_oneshot_unit_init_cfg_t init_config1 = {};
+    init_config1.unit_id = ADC_UNIT_1;
+    init_config1.ulp_mode = ADC_ULP_MODE_DISABLE;
+    
+    adc_oneshot_unit_handle_t adc1_handle;
+    adc_oneshot_new_unit(&init_config1, &adc1_handle);
+
+    adc_oneshot_chan_cfg_t config = {};
+    config.atten = ADC_ATTEN_DB_12;          // leer hasta 3.3V
+    config.bitwidth = ADC_BITWIDTH_DEFAULT;  // resolucion 12 bits 
+    
+    adc_oneshot_config_channel(adc1_handle, SENSOR_ADC_CH, &config);
+    
+    while (1) {
+        if (g_sensorActivo) {
+            int raw = 0;
+            adc_oneshot_read(adc1_handle, SENSOR_ADC_CH, &raw);
+            float voltaje = (raw * 3.3) / 4095.0; 
+            printf("[SENS] ADC raw:%d %.2fV tick:%d\n", raw, voltaje, (int)xTaskGetTickCount());
+            vTaskDelay(pdMS_TO_TICKS(300));
+        } else {
+            vTaskDelay(pdMS_TO_TICKS(100));
+        }
+    }
 }
 
-void loop() {
-    vTaskDelete(NULL);
+void vTaskMonitor(void *pvParameters) {  //monitor, prioridad 4
+    int ultimoEstado = 1; 
+    
+    while (1) {
+        int estadoActual = gpio_get_level(BOTON_PIN);
+        
+        // detecta boton presionado  
+        if (ultimoEstado == 1 && estadoActual == 0) {
+            printf("[MON] *** BOTON PRESIONADO ***\n"); // [cite: 32]
+            g_botonPres = true;
+            g_ledRapido = false;
+        }
+        ultimoEstado = estadoActual;
+
+        // reporte de stack 
+        if (xTaskGetTickCount() % pdMS_TO_TICKS(1000) < 50) {
+            printf("[MON] Heap:%d Stack R:%d\n", 
+                   (int)esp_get_free_heap_size(), 
+                   (int)uxTaskGetStackHighWaterMark(hLedRapido));
+        }
+        
+        vTaskDelay(pdMS_TO_TICKS(50)); 
+    }
+}
+void vApplicationIdleHook(void) {  // idle hook (prioridad 0)
+    printf("[IDLE] CPU libre esperando evento de boton\n");
+
+}
+extern "C" void app_main() {
+    printf("practica 1\n");
+    
+    // configuración de pines
+    gpio_set_direction(LED_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_direction(BOTON_PIN, GPIO_MODE_INPUT);
+    gpio_set_pull_mode(BOTON_PIN, GPIO_PULLUP_ONLY); 
+
+    // creacion de tareas
+    xTaskCreate(vTaskLedRapido, "LedRapido", 2048, NULL, 1, &hLedRapido); // 
+    xTaskCreate(vTaskLedLento, "LedLento", 2048, NULL, 2, NULL); // 
+    xTaskCreate(vTaskSensor, "Sensor", 2048, NULL, 3, NULL); // 
+    xTaskCreate(vTaskMonitor, "Monitor", 3072, NULL, 4, NULL); // 
 }

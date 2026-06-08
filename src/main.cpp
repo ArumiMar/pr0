@@ -3,14 +3,10 @@ integrantes:
     - Alexa Huerta Sanchez
     - Arumi Mar Romero
 el uso de freeRTOS permite gestiornar varias tareas de manera eficiente siempre y cuando se 
-respeten las reglas de diseño. los cambios mas criticos estuvieron en como algunas funcionres 
-requieren acceso exclusivo al hardware, en este caso, la lectura del adc, ya que no podia ejercutarse
-dentro del idle. esto se resolvio usando una tarea aislada y una varible global para compartir la lectura del adc. 
-luego, otro problema fue resolver el acceso al hardware para la lectura del adc 
-cumpliendo con la restriccion de tener solo tres tareas. esto se resolvio eliminando los hooks y las variables globales
-e integrando el bucle de lectura del sensor directamente dentro de la fase de descanso de la TaskManager
-por ultimo, el uso adecuado de las prioridades permite que esta tarea principal 
-controle los tiempos de los LEDs y el monitoreo con precisión.
+respeten las reglas de diseño. el uso del idle hook permitio verificar el comportamiento del scheduler del kernel. 
+al configurar correctamente las tareas para que utilicen vTaskDelay, se logro un comportamiento estable para el sistema. 
+el uso de volatile en las variables compartidas entre tareas tambien es importante para evitar problemas de 
+optimizacion en el compilado.
 */
 
 //librerias y definicion de harware 
@@ -134,7 +130,7 @@ if (ultimoEstado == 1 && estadoActual == 0) {
         vTaskDelay(pdMS_TO_TICKS(50));
     }
 }
-extern "C" void vApplicationIdleHook(void) {  // idle hook (prioridad 0)
+extern "C" void vApplicationIdleHook(void) {  // idle hook, prioridad 0
     static TickType_t lastPrintTime = 0;
     TickType_t currentTime = xTaskGetTickCount();
 
@@ -147,14 +143,14 @@ extern "C" void vApplicationIdleHook(void) {  // idle hook (prioridad 0)
 extern "C" void app_main() {
     printf("practica 1\n");
     
-    // configuración de pines
+    // configuracion de pines
     gpio_set_direction(LED_PIN, GPIO_MODE_OUTPUT);
     gpio_set_direction(BOTON_PIN, GPIO_MODE_INPUT);
     gpio_set_pull_mode(BOTON_PIN, GPIO_PULLUP_ONLY); 
 
     // creacion de tareas
-    xTaskCreate(vTaskLedRapido, "LedRapido", 2048, NULL, 1, &hLedRapido); // 
-    xTaskCreate(vTaskLedLento, "LedLento", 2048, NULL, 2, NULL); // 
-    xTaskCreate(vTaskSensor, "Sensor", 2048, NULL, 3, NULL); // 
-    xTaskCreate(vTaskMonitor, "Monitor", 3072, NULL, 4, NULL); // 
+    xTaskCreate(vTaskLedRapido, "LedRapido", 2048, NULL, 1, &hLedRapido); 
+    xTaskCreate(vTaskLedLento, "LedLento", 2048, NULL, 2, NULL);  
+    xTaskCreate(vTaskSensor, "Sensor", 2048, NULL, 3, NULL);  
+    xTaskCreate(vTaskMonitor, "Monitor", 3072, NULL, 4, NULL); 
 }

@@ -30,19 +30,32 @@ volatile bool g_sensorActivo = false;
 TaskHandle_t hLedRapido = NULL;
 
 void vTaskLedRapido(void *pvParameters) { //parpadeo rapido, prioridad 1
+    int ciclos = 0;
     while (1) {
+    
         if (g_botonPres) {
             printf("[LED_R] Boton detectado -> activando modo LENTO\n");
+            ciclos = 0; 
             vTaskSuspend(NULL); // para que se suspenda a si misma y deje de parpadear rapido
         }
         
-        gpio_set_level(LED_PIN, 1);
-        printf("[LED_R] ON tick:%d\n", (int)xTaskGetTickCount());
-        vTaskDelay(pdMS_TO_TICKS(100)); // parpadeo 100ms 
-        
-        gpio_set_level(LED_PIN, 0);
-        printf("[LED_R] OFF tick:%d\n", (int)xTaskGetTickCount());
-        vTaskDelay(pdMS_TO_TICKS(100));
+        if (g_ledRapido) {
+            gpio_set_level(LED_PIN, 1);
+            printf("[LED_R] ON tick:%d\n", (int)xTaskGetTickCount());
+            vTaskDelay(pdMS_TO_TICKS(100)); // parpadeo 100ms 
+            
+            gpio_set_level(LED_PIN, 0);
+            printf("[LED_R] OFF tick:%d\n", (int)xTaskGetTickCount());
+            vTaskDelay(pdMS_TO_TICKS(100));
+
+            ciclos++;
+            if (ciclos >= 25) { 
+                ciclos = 0;
+                g_ledRapido = false; // pasa al modo lento automaticamente
+            }
+        } else {
+            vTaskDelay(pdMS_TO_TICKS(100)); 
+        }
     }
 }
 
@@ -50,8 +63,11 @@ void vTaskLedLento(void *pvParameters) {  //parpadeo lento , prioridad 2
     int tiempoRestante = 5000; // 5 segundos de timeout 
     
     while (1) {
-        if (!g_ledRapido && g_botonPres) {
-            g_sensorActivo = true;
+        if (!g_ledRapido) {
+            
+            if (g_botonPres) {
+                g_sensorActivo = true;
+            }
             
             gpio_set_level(LED_PIN, 1);
             printf("[LED_L] ON t restante:%dms\n", tiempoRestante);
@@ -62,17 +78,21 @@ void vTaskLedLento(void *pvParameters) {  //parpadeo lento , prioridad 2
             
             tiempoRestante -= 1000;
             
-            // timeout 
+            // timeout de 5 segundos
             if (tiempoRestante <= 0) {
                 printf("[LED_L] Timeout 5s -> regresando a modo RAPIDO\n");
-                g_ledRapido = true;
-                g_botonPres = false;
-                g_sensorActivo = false;
-                tiempoRestante = 5000; // reinicia el contador
-                vTaskResume(hLedRapido); // reactiva el parpadeo rapido  
+                g_ledRapido = true; // vuelve al rapido
+                
+                if (g_botonPres) {
+                    g_botonPres = false;
+                    g_sensorActivo = false;
+                    vTaskResume(hLedRapido); // reactiva el parpadeo rapido  
+                }
+                tiempoRestante = 5000; // reinicia el contador 
             }
         } else {
-            vTaskDelay(pdMS_TO_TICKS(1000)); 
+            vTaskDelay(pdMS_TO_TICKS(500)); 
+            tiempoRestante = 5000; // inicia en 5s cuando sea su turno
         }
     }
 }
@@ -96,7 +116,7 @@ void vTaskSensor(void *pvParameters) {
             int raw = 0;
             adc_oneshot_read(adc1_handle, SENSOR_ADC_CH, &raw);
             float voltaje = (raw * 3.3) / 4095.0; 
-            printf("[SENS] ADC raw:%d %.2fV tick:%d\n", raw, voltaje, (int)xTaskGetTickCount());
+            printf("[SENS] ADC: %.2fV tick:%d\n", voltaje, (int)xTaskGetTickCount());
             vTaskDelay(pdMS_TO_TICKS(300));
         } else {
             vTaskDelay(pdMS_TO_TICKS(100));
